@@ -1,59 +1,82 @@
+import os
 import cv2
+import time
 
-print("Package imported")
+def main():
+    video_path = "video/dilan.MOV"
+    output_folder = "short_video_clips"  # Specify the folder where you want to save short video clips
 
-# Video read
-cap = cv2.VideoCapture('video/IMG_1331.MOV')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-# Get the frames per second (fps) of the video
-fps = cap.get(cv2.CAP_PROP_FPS)
+    cap = cv2.VideoCapture(video_path)
 
-while True:
-    success, img = cap.read()
-    
-    # Check if the video has reached the end
-    if not success:
-        break
+    if not cap.isOpened():
+        print(f"Error: Unable to open video file at {video_path}")
+        return
+    else:
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration_frames = int(cap.get(cv2.CAP_PROP_FPS))
+        print(f"Total frames in the video: {total_frames}")
 
-    # Get the height and width of the original frame
-    height, width, _ = img.shape
+    space_records = []
 
-    # Define the cropping percentages
-    top_percentage = 0.40  # 55% from the top
-    left_percentage = 0.30  # 30% from left
+    print("Press the space bar to mark specific places in the video and 'q' to quit.")
 
-    # Calculate the cropping dimensions
-    top_crop = int(height * top_percentage)
-    left_crop = int(width * left_percentage)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("End of video.")
+            break
 
-    # Crop the frame
-    img_cropped = img[top_crop:, left_crop:, :]
+        cv2.imshow("Video Player", frame)
 
-    # Draw a black box on the cropped image
-    box_width = int(0.5 * img_cropped.shape[1])  # 50% of the cropped image width
-    box_height = int(0.25 * img_cropped.shape[0])  # 25% of the cropped image height
+        key = cv2.waitKey(1)
 
-    # Coordinates for the top-left corner of the black box
-    box_start_x = 0
-    box_start_y = 0
+        if key == ord(' '):
+            current_frame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+            space_records.append(current_frame)
+            print(f"Space bar pressed at frame {current_frame}.")
 
-    # Coordinates for the bottom-right corner of the black box
-    box_end_x = box_start_x + box_width
-    box_end_y = box_start_y + box_height
+        elif key == ord('q'):
+            break
 
-    # Draw the black box
-    cv2.rectangle(img_cropped, (box_start_x, box_start_y), (box_end_x, box_end_y), (0, 0, 0), -1)
+    cap.release()
+    cv2.destroyAllWindows()
 
-    # Display the cropped image with the black box
-    cv2.imshow('Cropped Video with Black Box', img_cropped)
+    short_video_clips_frames = []
+    for frame_num in space_records:
+        start_frame = max(0, frame_num - duration_frames // 2)
+        print(f"start_frame: {start_frame}  duration_frames: {duration_frames} total_frames: {total_frames}")
+        end_frame = min(total_frames - 1, start_frame + duration_frames - 1)
+        short_video_clips_frames.append((start_frame, end_frame))
 
-    # Calculate the delay based on the original frame rate
-    delay = int(1000 / fps)  # Delay in milliseconds
+    # At this point, you have both space_records and short_video_clips_frames lists.
+    # Now, you can use these lists to create short video clips.
 
-    # Wait for a key event or delay, break the loop if 'q' is pressed
-    if cv2.waitKey(delay) & 0xFF == ord('q'):
-        break
+    # For each clip frame range, create a short video clip
+    for idx, (start_frame, end_frame) in enumerate(short_video_clips_frames):
+        print(f"Creating short video clip {idx+1}: Start Frame - {start_frame}, End Frame - {end_frame}")
 
-# Release the video capture object and close all windows
-cap.release()
-cv2.destroyAllWindows()
+        # Set the video capture back to the beginning
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+        # Create a VideoWriter object for the short video clip
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # You can adjust the codec based on your needs
+        clip_width, clip_height = int(cap.get(3)), int(cap.get(4))
+        clip_writer = cv2.VideoWriter(os.path.join(output_folder, f"short_clip_{idx+1}.mp4"), fourcc, cap.get(cv2.CAP_PROP_FPS), (clip_width, clip_height))
+
+        # Read frames and write to the short video clip
+        for frame_num in range(start_frame, end_frame + 1):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            clip_writer.write(frame)
+
+        clip_writer.release()
+
+    cap.release()
+
+if __name__ == "__main__":
+    main()
